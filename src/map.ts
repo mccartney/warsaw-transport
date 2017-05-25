@@ -76,7 +76,7 @@ export class ShapeMap {
     }
 
     private createMapGradient(): MapGradient {
-        let res: any = {start: [0, 255, 0], end: [255, 0, 0], steps: 90};
+        let res: any = {end: [0, 255, 0], start: [255, 0, 0], steps: 30};
         res.lookup = this.createGradientLookup(res.start, res.end, res.steps);
         res.hexLookup = res.lookup.map((color: number[]) => this.rgbToHex(color));
         return res as MapGradient;
@@ -116,6 +116,25 @@ export class ShapeMap {
             res.push(point);
         }
         return res;
+    }
+    
+    private getDistance(origin: L.LatLngTuple, destination: L.LatLngTuple): number {
+    // return distance in meters
+    var lon1 = this.toRadian(origin[1]),
+        lat1 = this.toRadian(origin[0]),
+        lon2 = this.toRadian(destination[1]),
+        lat2 = this.toRadian(destination[0]);
+
+    var deltaLat = lat2 - lat1;
+    var deltaLon = lon2 - lon1;
+
+    var a = Math.pow(Math.sin(deltaLat/2), 2) + Math.cos(lat1) * Math.cos(lat2) * Math.pow(Math.sin(deltaLon/2), 2);
+    var c = 2 * Math.asin(Math.sqrt(a));
+    var EARTH_RADIUS = 6371;
+    return c * EARTH_RADIUS * 1000;
+    }
+    private toRadian(degree: number): number {
+        return degree*Math.PI/180;
     }
 
     private initMap(): void {
@@ -166,7 +185,7 @@ export class ShapeMap {
             let idx: number = this.gradient.hexLookup.indexOf(hex);
             idx = idx < 0 && hex === "#ffffff" ? 0 : idx;
             if(idx >= 0) {
-                this.tooltip.innerHTML = idx.toString() + (idx < (this.gradient.steps - 1) ? " min" : "+ min");
+                this.tooltip.innerHTML = idx.toString() + (idx < (this.gradient.steps - 1) ? " km/h" : "> km/h");
             }
         }
     }
@@ -211,7 +230,11 @@ export class ShapeMap {
         let dijkstra: DijkstraAlgorithm = new DijkstraAlgorithm(this.points, this.routes, hour * 60);
         dijkstra.execute(center);
         for(let point of this.visiblePoints) {
-            const colorIdx = Math.min(point.cost - start, this.gradient.steps - 1);
+            const straightDistance = this.getDistance([point.lat, point.lon], center);
+            const efficiency = straightDistance * 60 / (point.cost - start) / 1000;
+//            console.log(" "+point.lat+" "+point.lon+"    "+efficiency+"    "+straightDistance+"    originally: "+(point.cost - start));
+//            break;
+            const colorIdx = Math.min(Math.round(efficiency), this.gradient.steps - 1);
             point.color = this.gradient.lookup[colorIdx];
             point.colorHex = this.gradient.hexLookup[colorIdx];
         }
